@@ -4,7 +4,7 @@ Prices live here - edit and re-run to update the page."""
 import json, re
 from urllib.parse import quote
 
-BASE = "https://mohammadmarwanbalkis-sketch.github.io/treasure-island/"
+BASE = "https://treasureislanddxb.com/"
 WA   = "971504738452"
 
 # slug, name, description, price in AED (None = not supplied yet)

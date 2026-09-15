@@ -50,4 +50,4 @@ Allow: /
 User-agent: meta-externalagent
 Allow: /
 
-Sitemap: https://mohammadmarwanbalkis-sketch.github.io/treasure-island/sitemap.xml
+Sitemap: https://treasureislanddxb.com/sitemap.xml
