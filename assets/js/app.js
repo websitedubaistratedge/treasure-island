@@ -190,11 +190,19 @@
     // mark active nav item. A link carrying a hash (Boutique -> play.html#shop)
     // lights up only when that hash is the one we are on, otherwise Play Zones
     // and Boutique would both read as active on the same page.
-    var path = location.pathname.split('/').pop() || 'index.html';
+    // Cloudflare serves /play while GitHub Pages serves /play.html, so compare
+    // page names with the extension stripped: play.html, play and /play match.
+    function page(p) {
+      p = (p || '').split('#')[0].split('/').pop().replace(/\.html$/, '');
+      return p === '' ? 'index' : p;
+    }
+    var path = page(location.pathname);
     var hash = location.hash;
     var links = $$('.nav-links a, .drawer-links a');
     var exact = links.filter(function (a) {
-      return hash && (a.getAttribute('href') || '') === path + hash;
+      var href = a.getAttribute('href') || '';
+      var i = href.indexOf('#');
+      return hash && i > -1 && page(href) === path && href.slice(i) === hash;
     });
     if (exact.length) {
       exact.forEach(function (a) { a.classList.add('active'); });
@@ -202,7 +210,7 @@
       links.forEach(function (a) {
         var href = a.getAttribute('href') || '';
         if (href.indexOf('#') > -1) return;
-        if (href && href === path) a.classList.add('active');
+        if (href && page(href) === path) a.classList.add('active');
       });
     }
   }
