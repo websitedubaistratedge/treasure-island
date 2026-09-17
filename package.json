@@ -1,0 +1,9 @@
+{
+  "name": "treasure-island",
+  "private": true,
+  "type": "module",
+  "description": "treasureislanddxb.com: static site in public/, Cloudflare Pages Functions in functions/, D1 schema in migrations/.",
+  "scripts": {
+    "test": "node --test tests/unit/*.test.js"
+  }
+}

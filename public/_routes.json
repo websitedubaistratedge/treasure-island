@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "description": "Only HTML pages, the API and uploaded media run server code. Static assets are served straight from the edge and never count toward the Functions request quota.",
+  "include": [
+    "/",
+    "/index.html",
+    "/play", "/play.html",
+    "/birthdays", "/birthdays.html",
+    "/programs", "/programs.html",
+    "/events", "/events.html",
+    "/about", "/about.html",
+    "/contact", "/contact.html",
+    "/api/*",
+    "/media/*"
+  ],
+  "exclude": []
+}
