@@ -1,5 +1,7 @@
 # Treasure Island Dubai — robots.txt
 User-agent: *
+Disallow: /admin/
+Disallow: /api/
 Allow: /
 
 # --- Answer & generative engines: explicitly welcome ---

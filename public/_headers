@@ -1,0 +1,15 @@
+# Admin panel: only its own scripts and styles may run, it cannot be framed,
+# and search engines are told to stay out.
+/admin/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(self), microphone=(), geolocation=()
+  Cache-Control: no-cache
+
+/assets/js/live.js
+  Cache-Control: public, max-age=300
+/assets/css/live.css
+  Cache-Control: public, max-age=300
