@@ -12,7 +12,19 @@ export async function onRequest(context) {
   const path = new URL(request.url).pathname;
   if (path.startsWith('/api/') || path.startsWith('/media/')) return next();
 
-  const res = await next();
+  // The static HTML never changes between deploys, so a revalidating browser
+  // would get "304 Not Modified" and keep a copy with yesterday's settings baked
+  // in (old announcement, old prices, booking buttons that should be gone).
+  // Ask for the full page every time and send no validators back.
+  let res;
+  if (request.method === 'GET') {
+    const headers = new Headers(request.headers);
+    headers.delete('if-none-match');
+    headers.delete('if-modified-since');
+    res = await next(new Request(request.url, { method: 'GET', headers }));
+  } else {
+    res = await next();
+  }
   const type = res.headers.get('content-type') || '';
   if (request.method !== 'GET' || !type.includes('text/html') || !env.DB) return res;
 
@@ -33,10 +45,10 @@ export async function onRequest(context) {
   const siteUrl = env.SITE_URL || new URL(request.url).origin;
   const cardOpts = { number: config.business.whatsapp, siteUrl, cart: config.booking.enabled };
   let rw = new HTMLRewriter()
-    .on('head', { element(el) { el.append('<link rel="stylesheet" href="/assets/css/live.css?v=1">', { html: true }); } })
+    .on('head', { element(el) { el.append('<link rel="stylesheet" href="/assets/css/live.css?v=4">', { html: true }); } })
     .on('body', {
       element(el) {
-        el.append(`<script id="ti-config" type="application/json">${scriptJson(config)}</script><script src="/assets/js/live.js?v=1" defer></script>`, { html: true });
+        el.append(`<script id="ti-config" type="application/json">${scriptJson(config)}</script><script src="/assets/js/live.js?v=4" defer></script>`, { html: true });
       },
     });
 
@@ -51,6 +63,9 @@ export async function onRequest(context) {
 
   const out = rw.transform(res);
   const headers = new Headers(out.headers);
+  headers.delete('etag');
+  headers.delete('last-modified');
+  headers.set('cache-control', 'no-cache');
   headers.set('x-content-type-options', 'nosniff');
   headers.set('referrer-policy', 'strict-origin-when-cross-origin');
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');

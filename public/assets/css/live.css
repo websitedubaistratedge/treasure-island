@@ -1,0 +1,139 @@
+/* =============================================================
+   Live layer: announcement banner, cart, booking and order pages.
+   Built only from the site's own tokens and components so nothing
+   added here looks foreign. Loaded on every page by the server.
+   ============================================================= */
+
+/* ---------- announcement bar ---------- */
+.ti-bar{position:absolute;left:0;right:0;top:0;z-index:950;min-height:42px;display:flex;align-items:center;justify-content:center;gap:.75rem;
+  padding:.55rem 3rem;text-align:center;font-family:var(--body);font-weight:700;font-size:.9rem;line-height:1.35}
+.ti-bar a{color:inherit;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.ti-bar--gold{background:var(--gold);color:var(--navy-900)}
+.ti-bar--navy{background:var(--navy);color:#fff}
+.ti-bar--coral{background:var(--coral);color:#fff}
+.ti-bar-x{position:absolute;right:.6rem;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.08);color:inherit;cursor:pointer;display:grid;place-items:center}
+.ti-bar-x:hover{background:rgba(0,0,0,.16)}
+.ti-bar-x svg{width:14px;height:14px}
+body.ti-has-bar{padding-top:var(--ti-bar,0px)}
+@media(max-width:640px){.ti-bar{font-size:.82rem;padding:.5rem 2.6rem .5rem 1rem}}
+
+/* ---------- book online buttons ---------- */
+.ti-book-online svg{width:1.05em;height:1.05em}
+
+/* ---------- cart button ---------- */
+.fab--cart{background:var(--gold);color:var(--navy-900);border:0;cursor:pointer}
+.fab--cart[hidden]{display:none}
+.fab--cart svg{width:25px;height:25px}
+.fab-count{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--navy);color:#fff;font:800 .72rem/22px var(--body);text-align:center;box-shadow:0 0 0 3px #fff}
+.fab--cart.bump{animation:tiBump .5s var(--e-back,cubic-bezier(.34,1.56,.64,1))}
+@keyframes tiBump{40%{transform:scale(1.18)}}
+
+/* ---------- drawer ---------- */
+.ti-scrim{position:fixed;inset:0;z-index:1200;background:rgba(0,30,48,.45);backdrop-filter:blur(3px);opacity:0;transition:opacity .3s}
+.ti-scrim.show{opacity:1}
+.ti-drawer{position:fixed;top:0;right:0;bottom:0;z-index:1201;width:min(470px,100vw);display:flex;flex-direction:column;background:var(--paper);box-shadow:var(--sh-3);transform:translateX(104%);transition:transform .45s var(--e-out)}
+.ti-drawer.show{transform:none}
+.ti-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 1.3rem;border-bottom:1px solid var(--line);background:#fff}
+.ti-drawer-head h2{font-family:var(--display);font-weight:600;font-size:1.45rem;margin:0;color:var(--navy)}
+.ti-icon-btn{width:40px;height:40px;border-radius:50%;border:0;background:var(--paper-2);color:var(--navy);display:grid;place-items:center;cursor:pointer}
+.ti-icon-btn svg{width:18px;height:18px}
+.ti-drawer-body{flex:1;overflow-y:auto;padding:1.1rem 1.3rem 1.5rem;display:grid;gap:1rem;align-content:start}
+.ti-drawer-foot{padding:1rem 1.3rem calc(1rem + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#fff;display:grid;gap:.6rem}
+
+.ti-line{display:grid;grid-template-columns:62px 1fr auto;gap:.8rem;align-items:center;padding:.8rem;border-radius:var(--r);background:#fff;box-shadow:var(--sh-1)}
+.ti-line-img{width:62px;height:62px;border-radius:14px;background:var(--paper-2);display:grid;place-items:center;overflow:hidden;color:var(--navy-500)}
+.ti-line-img img{width:100%;height:100%;object-fit:cover}
+.ti-line-img svg{width:26px;height:26px}
+.ti-line b{display:block;font-family:var(--display);font-weight:600;color:var(--navy);line-height:1.2}
+.ti-line small{display:block;color:var(--ink-55);font-size:.8rem;margin-top:.15rem}
+.ti-line-side{display:grid;justify-items:end;gap:.35rem}
+.ti-line-price{font-weight:800;color:var(--navy);white-space:nowrap}
+.ti-link{border:0;background:none;padding:0;font:600 .78rem var(--body);color:var(--ink-55);cursor:pointer;text-decoration:underline}
+.ti-link:hover{color:var(--coral)}
+.ti-stepper{display:inline-flex;align-items:center;border-radius:var(--r-pill);background:var(--paper-2)}
+.ti-stepper button{width:28px;height:28px;border:0;background:none;font-weight:800;color:var(--navy);cursor:pointer;border-radius:50%}
+.ti-stepper span{min-width:20px;text-align:center;font-weight:800;font-size:.85rem}
+
+.ti-total{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;color:var(--ink-70)}
+.ti-total b{font-family:var(--display);font-size:1.5rem;font-weight:600;color:var(--navy)}
+.ti-note{font-size:.8rem;color:var(--ink-55);line-height:1.5}
+.ti-err{padding:.75rem .9rem;border-radius:var(--r-sm);background:rgba(255,107,74,.12);color:#b8391d;font-weight:600;font-size:.88rem}
+.ti-ok{padding:.75rem .9rem;border-radius:var(--r-sm);background:rgba(70,184,122,.14);color:#1f7a4d;font-weight:600;font-size:.88rem}
+.ti-row{display:flex;gap:.5rem;align-items:flex-end}
+.ti-row .field{flex:1;min-width:0}
+.ti-drawer .ti-row .btn,.ti-row .btn{flex:none;width:auto;min-height:48px}
+.ti-empty{text-align:center;padding:2.5rem 1rem;color:var(--ink-55);display:grid;gap:.6rem;justify-items:center}
+.ti-empty svg{width:44px;height:44px;color:var(--gold-600)}
+.ti-drawer .btn{width:100%;justify-content:center}
+.ti-drawer .field input,.ti-drawer .field textarea{padding:.78rem .95rem}
+.btn.is-busy{opacity:.7;pointer-events:none}
+
+/* ---------- booking page ---------- */
+.ti-page{padding-top:calc(var(--nav-h) + clamp(2rem,5vw,3.5rem))}
+.ti-offers{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:clamp(1rem,2vw,1.5rem);margin-top:clamp(1.4rem,3vw,2.2rem)}
+@media(max-width:420px){.ti-offers{grid-template-columns:1fr}}
+.ti-offer{display:flex;flex-direction:column;border-radius:var(--r-lg);background:#fff;box-shadow:var(--sh-1);overflow:hidden;scroll-margin-top:calc(var(--nav-h) + 1rem)}
+.ti-offer.open{box-shadow:var(--sh-3);grid-column:1/-1}
+.ti-offer-img{aspect-ratio:16/9;background:linear-gradient(135deg,var(--navy),var(--navy-500));display:grid;place-items:center;color:rgba(255,255,255,.7)}
+.ti-offer.open .ti-offer-img{aspect-ratio:21/9}
+/* laptop: an open card sits image-left, details-right, with the picker below */
+@media(min-width:900px){
+  .ti-offer.open{display:grid;grid-template-columns:minmax(260px,34%) 1fr}
+  .ti-offer.open .ti-offer-img{aspect-ratio:auto;min-height:220px}
+  .ti-offer.open .ti-offer-body{padding:1.6rem 1.8rem}
+  .ti-offer.open .ti-picker{grid-column:1/-1;padding:1.4rem 1.8rem 1.6rem}
+}
+.ti-offer-img img{width:100%;height:100%;object-fit:cover}
+.ti-offer-img svg{width:48px;height:48px}
+.ti-offer-body{padding:1.1rem 1.25rem 1.3rem;display:grid;gap:.55rem;flex:1}
+.ti-offer-kind{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-600)}
+.ti-offer h3{font-family:var(--display);font-weight:600;font-size:1.35rem;margin:0;color:var(--navy);line-height:1.15}
+.ti-offer p{margin:0;color:var(--ink-70);font-size:.93rem;line-height:1.55}
+.ti-offer-foot{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-top:auto;padding-top:.4rem}
+.ti-price{font-weight:800;color:var(--navy)}
+.ti-price small{font-weight:600;color:var(--ink-55)}
+.ti-picker{display:grid;gap:1rem;padding:1.2rem 1.25rem 1.4rem;border-top:1px solid var(--line);background:var(--paper)}
+.ti-label{font-size:.78rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-55)}
+.ti-days{display:flex;gap:.5rem;overflow-x:auto;padding:.2rem .1rem .6rem;scroll-snap-type:x proximity}
+.ti-day{flex:none;scroll-snap-align:start;min-width:72px;padding:.55rem .6rem;border-radius:16px;border:1.5px solid var(--line);background:#fff;text-align:center;cursor:pointer;font-family:var(--body);color:var(--ink)}
+.ti-day b{display:block;font-family:var(--display);font-size:1.35rem;font-weight:600;color:var(--navy);line-height:1}
+.ti-day span{display:block;font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-55)}
+.ti-day.on{border-color:var(--gold);background:var(--gold-50);box-shadow:0 0 0 3px rgba(255,186,26,.25)}
+.ti-times{display:flex;flex-wrap:wrap;gap:.5rem}
+.ti-time{padding:.6rem .9rem;border-radius:var(--r-pill);border:1.5px solid var(--line);background:#fff;font:700 .88rem var(--body);color:var(--navy);cursor:pointer}
+.ti-time small{font-weight:600;color:var(--ink-55);margin-left:.35rem}
+.ti-time.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.ti-time.on small{color:rgba(255,255,255,.75)}
+.ti-time[disabled]{opacity:.45;cursor:not-allowed;text-decoration:line-through}
+.ti-kid{display:grid;grid-template-columns:1fr 90px 40px;gap:.5rem;align-items:center}
+.ti-kid input{width:100%;padding:.72rem .9rem;border-radius:var(--r-sm);background:#fff;border:1.5px solid var(--line);font:inherit}
+.ti-kid input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(255,186,26,.18)}
+.ti-amounts{display:flex;flex-wrap:wrap;gap:.5rem}
+.ti-section-title{display:flex;align-items:end;justify-content:space-between;gap:1rem;margin-top:clamp(2.5rem,6vw,4rem)}
+.ti-section-title h2{font-family:var(--display);font-weight:600;color:var(--navy);margin:0;font-size:clamp(1.5rem,3vw,2.1rem)}
+
+/* ---------- order page ---------- */
+.ti-status{border-radius:var(--r-xl);padding:clamp(1.6rem,4vw,2.6rem);display:grid;gap:.7rem;justify-items:center;text-align:center;background:#fff;box-shadow:var(--sh-2)}
+.ti-status-ico{width:74px;height:74px;border-radius:50%;display:grid;place-items:center}
+.ti-status-ico svg{width:36px;height:36px}
+.ti-status.ok .ti-status-ico{background:rgba(70,184,122,.16);color:#1f9d63}
+.ti-status.wait .ti-status-ico{background:var(--gold-50);color:var(--gold-600)}
+.ti-status.bad .ti-status-ico{background:rgba(255,107,74,.14);color:var(--coral)}
+.ti-status h1{font-family:var(--display);font-weight:600;color:var(--navy);margin:0;font-size:clamp(1.9rem,4vw,2.8rem);line-height:1.1}
+.ti-ref{font-family:ui-monospace,Menlo,monospace;font-weight:700;letter-spacing:.06em;padding:.35rem .8rem;border-radius:var(--r-pill);background:var(--paper-2);color:var(--navy)}
+.ti-order-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:clamp(1rem,2vw,1.5rem);margin-top:clamp(1.2rem,3vw,2rem);align-items:start}
+@media(max-width:860px){.ti-order-grid{grid-template-columns:1fr}}
+.ti-card{border-radius:var(--r-lg);background:#fff;box-shadow:var(--sh-1);padding:1.2rem 1.3rem;display:grid;gap:.8rem}
+.ti-card h2{font-family:var(--display);font-weight:600;font-size:1.25rem;color:var(--navy);margin:0}
+.ti-kv{display:grid;grid-template-columns:1fr auto;gap:.45rem 1rem;font-size:.95rem}
+.ti-kv dt{color:var(--ink-55)}
+.ti-kv dd{margin:0;font-weight:700;color:var(--navy);text-align:right}
+.ti-code{display:grid;grid-template-columns:120px 1fr;gap:1rem;align-items:center;padding:.9rem;border-radius:var(--r);background:var(--paper)}
+.ti-code svg{width:120px;height:120px;border-radius:10px;display:block}
+.ti-code b{font-family:ui-monospace,Menlo,monospace;letter-spacing:.05em;font-size:1.05rem;color:var(--navy);word-break:break-all}
+@media(max-width:420px){.ti-code{grid-template-columns:1fr;justify-items:center;text-align:center}.ti-code svg{width:180px;height:180px}}
+
+.ti-toast{position:fixed;left:50%;bottom:calc(1.2rem + env(safe-area-inset-bottom));z-index:1300;transform:translate(-50%,20px);opacity:0;padding:.8rem 1.1rem;border-radius:var(--r-pill);background:var(--navy);color:#fff;font-weight:700;font-size:.9rem;box-shadow:var(--sh-3);transition:opacity .3s,transform .4s var(--e-out);display:flex;gap:.6rem;align-items:center;max-width:calc(100vw - 2rem)}
+.ti-toast.show{opacity:1;transform:translate(-50%,0)}
+.ti-toast svg{width:18px;height:18px;color:var(--gold)}
+@media(prefers-reduced-motion:reduce){.ti-drawer,.ti-scrim,.ti-toast,.fab--cart.bump{transition:none;animation:none}}

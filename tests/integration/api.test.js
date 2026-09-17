@@ -292,6 +292,18 @@ test('passes: visits count down and stop at zero', async () => {
   assert.equal(more.data.row.status, 'active');
 });
 
+test('a browser revalidating its cached page still gets the current settings', async () => {
+  const first = await fetch(`${BASE}/`);
+  await first.text();
+  assert.equal(first.headers.get('etag'), null, 'no validator is handed out for live pages');
+  assert.equal(first.headers.get('cache-control'), 'no-cache');
+  // Even a browser holding the raw file's ETag must get a full, fresh page.
+  const raw = await fetch(`${BASE}/assets/css/style.css`);
+  const again = await fetch(`${BASE}/`, { headers: { 'if-none-match': raw.headers.get('etag') || '"anything"', 'if-modified-since': new Date().toUTCString() } });
+  assert.equal(again.status, 200);
+  assert.match(await again.text(), /id="ti-config"/);
+});
+
 test('enquiries, announcements and opening hours reach the public site', async () => {
   const e = await api('/api/enquiries', { method: 'POST', body: { kind: 'birthday', name: 'Rana', phone: '0503334455', message: 'Party for 12 kids', fields: { date: '2026-10-10' } } });
   assert.equal(e.status, 201);

@@ -980,7 +980,7 @@ p{text-wrap:pretty}
 .foot-brand img{height:64px;width:auto;margin-bottom:1.1rem}
 .foot-brand p{font-size:.93rem;max-width:34ch;line-height:1.65}
 .foot h4{color:#fff;font-size:1.02rem;margin-bottom:1.1rem;font-family:var(--display)}
-.foot ul{display:grid;gap:.62rem}
+.foot ul{display:grid;gap:.62rem;list-style:none}
 .foot a{font-size:.93rem;transition:color .3s,transform .3s var(--e-out);display:inline-block}
 .foot a:hover{color:var(--gold);transform:translateX(3px)}
 .socials{display:flex;gap:.55rem;margin-top:1.3rem}
