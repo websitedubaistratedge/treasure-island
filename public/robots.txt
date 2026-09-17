@@ -52,4 +52,4 @@ Allow: /
 User-agent: meta-externalagent
 Allow: /
 
-Sitemap: https://treasureislanddxb.com/sitemap.xml
+Sitemap: https://www.treasureislanddxb.com/sitemap.xml

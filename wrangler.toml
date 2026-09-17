@@ -1,4 +1,4 @@
-# Cloudflare Pages project for treasureislanddxb.com.
+# Cloudflare Pages project for www.treasureislanddxb.com.
 # The static site lives in public/, server code in functions/ (with shared
 # modules in src/), and the database schema in migrations/.
 name = "treasure-island"
@@ -8,9 +8,9 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "treasure-island-db"
-# Replaced with the real database id when the D1 database is created.
+# Production database (treasure-island-db).
 database_id = "6a364307-b48f-4c77-9b11-4d7137212a79"
 migrations_dir = "migrations"
 
 [vars]
-SITE_URL = "https://treasureislanddxb.com"
+SITE_URL = "https://www.treasureislanddxb.com"
