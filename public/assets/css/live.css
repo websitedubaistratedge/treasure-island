@@ -74,7 +74,7 @@ body.ti-has-bar{padding-top:var(--ti-bar,0px)}
 @media(max-width:420px){.ti-offers{grid-template-columns:1fr}}
 .ti-offer{display:flex;flex-direction:column;border-radius:var(--r-lg);background:#fff;box-shadow:var(--sh-1);overflow:hidden;scroll-margin-top:calc(var(--nav-h) + 1rem)}
 .ti-offer.open{box-shadow:var(--sh-3);grid-column:1/-1}
-.ti-offer-img{aspect-ratio:16/9;background:linear-gradient(135deg,var(--navy),var(--navy-500));display:grid;place-items:center;color:rgba(255,255,255,.7)}
+.ti-offer-img{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,var(--navy),var(--navy-500));display:grid;place-items:center;color:rgba(255,255,255,.7)}
 .ti-offer.open .ti-offer-img{aspect-ratio:21/9}
 /* laptop: an open card sits image-left, details-right, with the picker below */
 @media(min-width:900px){
@@ -137,3 +137,25 @@ body.ti-has-bar{padding-top:var(--ti-bar,0px)}
 .ti-toast.show{opacity:1;transform:translate(-50%,0)}
 .ti-toast svg{width:18px;height:18px;color:var(--gold)}
 @media(prefers-reduced-motion:reduce){.ti-drawer,.ti-scrim,.ti-toast,.fab--cart.bump{transition:none;animation:none}}
+
+/* ---------- product videos & lightbox ---------- */
+.shop-card figure.ti-has-vid{position:relative}
+.shop-card .ti-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .35s ease;background:#000}
+.shop-card figure.ti-vid-on .ti-vid{opacity:1}
+.ti-vid-badge{position:absolute;right:10px;bottom:10px;z-index:2;display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;cursor:pointer;
+  background:rgba(255,255,255,.92);color:var(--navy);box-shadow:0 6px 18px rgba(0,48,74,.22)}
+.ti-vid-badge svg{width:16px;height:16px;margin-left:2px}
+.ti-vid-badge:hover{background:var(--gold)}
+.ti-watch{position:absolute;left:10px;bottom:10px;display:inline-flex;align-items:center;gap:.4rem;border:0;border-radius:var(--r-pill);cursor:pointer;
+  padding:.42rem .8rem;font:700 .8rem var(--body);background:rgba(0,48,74,.82);color:#fff;backdrop-filter:blur(4px)}
+.ti-watch svg{width:12px;height:12px}
+.ti-watch:hover{background:var(--navy)}
+.ti-lightbox{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:clamp(1rem,4vw,3rem);
+  background:rgba(0,24,38,.86);opacity:0;transition:opacity .2s ease}
+.ti-lightbox.show{opacity:1}
+.ti-lightbox video{max-width:min(100%,520px);max-height:86vh;border-radius:var(--r-lg);box-shadow:0 30px 80px rgba(0,0,0,.5);background:#000}
+.ti-lightbox-x{position:absolute;top:max(1rem,env(safe-area-inset-top));right:1rem;width:42px;height:42px;border:0;border-radius:50%;cursor:pointer;
+  display:grid;place-items:center;background:rgba(255,255,255,.14);color:#fff}
+.ti-lightbox-x:hover{background:rgba(255,255,255,.26)}
+.ti-lightbox-x svg{width:18px;height:18px}
+@media(prefers-reduced-motion:reduce){.shop-card .ti-vid,.ti-lightbox{transition:none}}

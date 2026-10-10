@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { html, ico, mount, $, $$, aed, toAed, drawer, toast, errorToast, busy, values, showErrors, confirmDialog, badge, raw } from '../ui.js';
-import { imagePicker, imageSrc } from '../media.js';
+import { imagePicker, imageSrc, galleryEditor } from '../media.js';
 
 const FILTERS = [['all', 'All'], ['active', 'On the website'], ['hidden', 'Hidden'], ['low', 'Low stock']];
 
@@ -72,8 +72,11 @@ export default async function boutique(root, ctx) {
     const row = p || { active: 1, featured: 1 };
     const d = drawer({ title: p ? p.name : 'Add product' });
     let imageId = row.image_id || null;
+    let gallery = [];
+    let galleryTouched = !p;
     mount(d.body, html`<form class="form" novalidate>
       <div data-image></div>
+      <div data-gallery></div>
       <div class="field"><label>Name *</label><input class="input" name="name" value="${row.name || ''}" ${manager ? '' : raw('disabled')}></div>
       <div class="field"><label>Description</label><textarea class="textarea" name="description" rows="3" maxlength="600" ${manager ? '' : raw('disabled')}>${row.description || ''}</textarea></div>
       <div class="grid-2">
@@ -84,6 +87,9 @@ export default async function boutique(root, ctx) {
       <label class="switch"><input type="checkbox" name="featured" ${row.featured ? raw('checked') : ''} ${manager ? '' : raw('disabled')}><span class="track"></span><span><b>Show on the homepage</b><div class="help">Appears in the homepage boutique strip.</div></span></label>
     </form>`);
     if (manager) imagePicker($('[data-image]', d.body), { current: imageSrc(row), onChange: (m) => { imageId = m.id; } });
+    const mountGallery = () => galleryEditor($('[data-gallery]', d.body), { items: gallery, canEdit: manager, onChange: (items) => { gallery = items; galleryTouched = true; } });
+    mountGallery();
+    if (p) api(`/products/${p.id}/media`).then(({ rows: media }) => { gallery = media; mountGallery(); }).catch(() => {});
     d.setFoot(html`${p && manager ? html`<button class="btn btn-danger" data-del>${ico('trash')} Delete</button>` : ''}<div class="top-spacer"></div>
       <button class="btn btn-ghost" data-cancel>Cancel</button><button class="btn btn-primary" data-save>${ico('check')} Save</button>`);
     d.el.addEventListener('click', async (e) => {
@@ -95,7 +101,12 @@ export default async function boutique(root, ctx) {
           ? { name: v.name, description: v.description, price: v.price, stock: v.stock, active: v.active, featured: v.featured, ...(imageId !== row.image_id ? { image_id: imageId } : {}) }
           : { stock: v.stock, active: v.active };
         await busy(save, async () => {
-          try { await api(p ? `/products/${p.id}` : '/products', { method: p ? 'PATCH' : 'POST', body }); toast(p ? 'Product saved' : 'Product added'); d.close(); load(); } catch (err) { showErrors(d.body, err); }
+          try {
+            const saved = await api(p ? `/products/${p.id}` : '/products', { method: p ? 'PATCH' : 'POST', body });
+            const id = p ? p.id : saved.row.id;
+            if (galleryTouched && manager) await api(`/products/${id}/media`, { method: 'PUT', body: { ids: gallery.map((m) => m.id) } });
+            toast(p ? 'Product saved' : 'Product added'); d.close(); load();
+          } catch (err) { showErrors(d.body, err); }
         });
       }
       if (e.target.closest('[data-del]')) {

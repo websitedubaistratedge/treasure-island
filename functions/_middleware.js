@@ -2,6 +2,7 @@ import { publicConfig } from '../src/lib/settings.js';
 import { all } from '../src/lib/db.js';
 import { scriptJson } from '../src/lib/html.js';
 import { productCard } from '../src/lib/boutique.js';
+import { galleriesFor, firstVideo, firstImage, mediaUrl, posterUrl } from '../src/lib/media.js';
 
 // Runs only for the HTML pages listed in public/_routes.json. It adds the live
 // layer (config, announcement banner, cart) and renders boutique products from
@@ -31,12 +32,22 @@ export async function onRequest(context) {
   const boutiquePage = path === '/' || path === '/index.html' || path === '/play' || path === '/play.html';
   let config;
   let products = [];
+  let productMedia = new Map();
+  let films = [];
   try {
     config = await publicConfig(env);
     if (boutiquePage) {
       products = await all(env.DB,
         'SELECT id, slug, name, description, price_fils, image_id, image_url, stock, featured FROM products WHERE active = 1 ORDER BY sort, id');
+      productMedia = await galleriesFor(env.DB, 'product', products.map((p) => p.id));
     }
+    // A video added to a programme in the admin replaces the film in that
+    // block, so the team can refresh what plays without a developer.
+    const offerings = await all(env.DB, 'SELECT id, slug FROM offerings WHERE active = 1');
+    const galleries = await galleriesFor(env.DB, 'offering', offerings.map((o) => o.id));
+    films = offerings
+      .map((o) => ({ slug: o.slug, video: firstVideo(galleries.get(o.id)), image: firstImage(galleries.get(o.id)) }))
+      .filter((f) => f.video);
   } catch (err) {
     console.error('live layer skipped', err);
     return res;
@@ -45,20 +56,38 @@ export async function onRequest(context) {
   const siteUrl = env.SITE_URL || new URL(request.url).origin;
   const cardOpts = { number: config.business.whatsapp, siteUrl, cart: config.booking.enabled };
   let rw = new HTMLRewriter()
-    .on('head', { element(el) { el.append('<link rel="stylesheet" href="/assets/css/live.css?v=4">', { html: true }); } })
+    .on('head', { element(el) { el.append('<link rel="stylesheet" href="/assets/css/live.css?v=6">', { html: true }); } })
     .on('body', {
       element(el) {
-        el.append(`<script id="ti-config" type="application/json">${scriptJson(config)}</script><script src="/assets/js/live.js?v=4" defer></script>`, { html: true });
+        el.append(`<script id="ti-config" type="application/json">${scriptJson(config)}</script><script src="/assets/js/live.js?v=5" defer></script>`, { html: true });
       },
     });
 
   if (products.length) {
-    const grid = products.map((p) => productCard(p, { ...cardOpts, variant: 'grid' })).join('\n');
+    const withMedia = (p) => ({ ...p, media: productMedia.get(p.id) || [] });
+    const grid = products.map((p) => productCard(withMedia(p), { ...cardOpts, variant: 'grid' })).join('\n');
     const featured = products.filter((p) => p.featured);
-    const rail = (featured.length ? featured : products).map((p) => productCard(p, { ...cardOpts, variant: 'rail' })).join('\n');
+    const rail = (featured.length ? featured : products).map((p) => productCard(withMedia(p), { ...cardOpts, variant: 'rail' })).join('\n');
     rw = rw
       .on('.shop-grid', { element(el) { el.setInnerContent(grid, { html: true }); } })
       .on('[data-rail-track]', { element(el) { el.setInnerContent(rail, { html: true }); } });
+  }
+
+  for (const film of films) {
+    const sel = `[data-film="${film.slug}"]`;
+    const src = mediaUrl(film.video.id);
+    const poster = posterUrl(film.video) || (film.image ? mediaUrl(film.image.id) : null);
+    rw = rw
+      .on(`${sel} .rfilm-full source`, { element(el) { el.setAttribute('data-src', src); el.setAttribute('type', film.video.mime || 'video/mp4'); } })
+      // The short hover loop belongs to the old film. Remove the whole player
+      // rather than just its source: an empty one would still be faded in over
+      // the cover image and show a black panel.
+      .on(`${sel} .rfilm-loop`, { element(el) { el.remove(); } });
+    if (poster) {
+      rw = rw
+        .on(`${sel} .rfilm-poster`, { element(el) { el.setAttribute('src', poster); el.removeAttribute('srcset'); el.removeAttribute('sizes'); } })
+        .on(`${sel} .rfilm-full`, { element(el) { el.setAttribute('poster', poster); } });
+    }
   }
 
   const out = rw.transform(res);

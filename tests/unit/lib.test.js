@@ -6,6 +6,7 @@ import { toFils, formatAed } from '../../src/lib/money.js';
 import { phone, email, slugify, url } from '../../src/lib/validate.js';
 import { verifyStripeSignature } from '../../src/lib/stripe.js';
 import { HttpError } from '../../src/lib/http.js';
+import { parseRange, partsForRange, sniffVideo, firstImage, firstVideo, posterUrl, PART_SIZE } from '../../src/lib/media.js';
 
 test('password hashing verifies the right password and rejects others', async () => {
   const h = await hashPassword('correct horse battery staple');
@@ -102,4 +103,44 @@ test('JSON embedded in a <script> tag cannot break out of it', async () => {
   assert.ok(!out.includes('</'), 'no raw closing tag');
   assert.ok(!out.includes(ls) && !out.includes(ps), 'no raw line/paragraph separators');
   assert.deepEqual(JSON.parse(out), { a: '</script><script>alert(1)</script>', b: `x${ls}y${ps}z` }, 'still round-trips to the same data');
+});
+
+test('byte ranges: what a video player asks for maps to the right stored parts', () => {
+  const total = 1_300_000; // three parts of 512 KB
+  assert.deepEqual(parseRange('bytes=0-', total), { start: 0, end: total - 1 });
+  assert.deepEqual(parseRange('bytes=100-199', total), { start: 100, end: 199 });
+  assert.deepEqual(parseRange('bytes=-500', total), { start: total - 500, end: total - 1 });
+  // past the end is clamped, not an error
+  assert.deepEqual(parseRange('bytes=1000-99999999', total), { start: 1000, end: total - 1 });
+  // a start beyond the file is refused, which browsers expect as a 416
+  assert.deepEqual(parseRange(`bytes=${total}-`, total), { unsatisfiable: true });
+  assert.equal(parseRange('', total), null);
+  assert.equal(parseRange('parts=1-2', total), null);
+
+  assert.deepEqual(partsForRange(0, 10), { first: 0, last: 0, offset: 0 });
+  assert.deepEqual(partsForRange(PART_SIZE - 1, PART_SIZE), { first: 0, last: 1, offset: PART_SIZE - 1 });
+  assert.deepEqual(partsForRange(PART_SIZE * 2 + 5, PART_SIZE * 2 + 9), { first: 2, last: 2, offset: 5 });
+});
+
+test('videos are checked by their own bytes, not the name they arrive with', () => {
+  const mp4 = new Uint8Array(16); mp4.set([0x66, 0x74, 0x79, 0x70], 4);
+  const webm = Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(sniffVideo(mp4), 'video/mp4');
+  assert.equal(sniffVideo(webm), 'video/webm');
+  assert.equal(sniffVideo(new Uint8Array(16)), null);
+  assert.equal(sniffVideo(Uint8Array.from([0x1a, 0x45])), null); // too short to tell
+});
+
+test('a gallery picks the first photo and the first video, in the admin order', () => {
+  const items = [
+    { id: 'a', kind: 'image' },
+    { id: 'b', kind: 'video', poster_id: 'p1' },
+    { id: 'c', kind: 'video' },
+  ];
+  assert.equal(firstImage(items).id, 'a');
+  assert.equal(firstVideo(items).id, 'b');
+  assert.equal(posterUrl(firstVideo(items)), '/media/p1');
+  assert.equal(posterUrl({ kind: 'video', poster_id: null }), null);
+  assert.equal(posterUrl({ kind: 'image', id: 'a' }), '/media/a');
+  assert.equal(firstVideo([]), null);
 });

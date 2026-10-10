@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { html, ico, mount, $, aed, toAed, drawer, toast, errorToast, busy, values, showErrors, confirmDialog, KIND_LABEL, raw } from '../ui.js';
-import { imagePicker, imageSrc } from '../media.js';
+import { imagePicker, imageSrc, galleryEditor } from '../media.js';
 
 const KINDS = [['program', 'Programme'], ['camp', 'Camp'], ['party', 'Party'], ['workshop', 'Workshop'], ['event', 'Event'], ['pass', 'Multi-visit pass']];
 
@@ -38,8 +38,11 @@ export default async function programs(root, ctx) {
     const o = row || { kind: 'program', price_unit: 'child', max_children: 6, active: 1 };
     const d = drawer({ title: row ? row.name : 'New programme', wide: true });
     let imageId = o.image_id || null;
+    let gallery = [];
+    let galleryTouched = !row; // a new programme always saves whatever was added
     const draw = (kind) => mount(d.body, html`<form class="form" novalidate>
       <div data-image></div>
+      <div data-gallery></div>
       <div class="grid-2">
         <div class="field"><label>Name *</label><input class="input" name="name" value="${o.name || ''}"></div>
         <div class="field"><label>Type</label><select class="select" name="kind">${KINDS.map(([v, l]) => html`<option value="${v}" ${kind === v ? raw('selected') : ''}>${l}</option>`)}</select></div>
@@ -63,8 +66,18 @@ export default async function programs(root, ctx) {
         <div class="field"><label>Valid for</label><div class="input-group has-suffix"><input class="input" name="validity_days" type="number" min="1" value="${o.validity_days ?? 90}"><span class="suffix">days</span></div></div></div>` : ''}
       <label class="switch"><input type="checkbox" name="active" ${o.active ? raw('checked') : ''}><span class="track"></span><span><b>Bookable</b><div class="help">Hidden programmes keep their history but cannot be booked.</div></span></label>
     </form>`);
-    const mountImage = () => imagePicker($('[data-image]', d.body), { current: imageSrc({ ...o, image_id: imageId }), onChange: (m) => { imageId = m.id; } });
+    const mountImage = () => {
+      imagePicker($('[data-image]', d.body), { current: imageSrc({ ...o, image_id: imageId }), onChange: (m) => { imageId = m.id; } });
+      galleryEditor($('[data-gallery]', d.body), { items: gallery, canEdit: manager, onChange: (items) => { gallery = items; galleryTouched = true; } });
+    };
     draw(o.kind); mountImage();
+    if (row) {
+      api(`/offerings/${row.id}/media`).then(({ rows: media }) => {
+        gallery = media;
+        const host = $('[data-gallery]', d.body);
+        if (host) galleryEditor(host, { items: gallery, canEdit: manager, onChange: (items) => { gallery = items; galleryTouched = true; } });
+      }).catch(() => {});
+    }
     d.el.addEventListener('change', (e) => {
       if (e.target.name === 'kind') {
         const keep = values($('form', d.body));
@@ -84,7 +97,9 @@ export default async function programs(root, ctx) {
         if (v.kind === 'pass') Object.assign(body, { visits: v.visits, validity_days: v.validity_days });
         await busy(save, async () => {
           try {
-            await api(row ? `/offerings/${row.id}` : '/offerings', { method: row ? 'PATCH' : 'POST', body });
+            const saved = await api(row ? `/offerings/${row.id}` : '/offerings', { method: row ? 'PATCH' : 'POST', body });
+            const id = row ? row.id : saved.row.id;
+            if (galleryTouched) await api(`/offerings/${id}/media`, { method: 'PUT', body: { ids: gallery.map((m) => m.id) } });
             toast(row ? 'Programme saved' : 'Programme created');
             d.close(); load();
           } catch (err) { showErrors(d.body, err); }

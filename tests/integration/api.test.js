@@ -1,21 +1,44 @@
 // End-to-end tests against a running `wrangler pages dev` with a local D1.
 // Stripe is replaced by a mock server on :9999 (see .dev.vars).
-//   BASE=http://127.0.0.1:8788 WRANGLER=/path/to/wrangler node --test tests/integration/
+//   BASE=http://127.0.0.1:8788 node --test tests/integration/
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import { fileURLToPath } from 'node:url';
 import { hmacSha256Hex } from '../../src/lib/crypto.js';
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8788';
-const WRANGLER = process.env.WRANGLER;
 const OWNER = { email: 'owner@test.local', password: 'Local-Test-Owner-Pass-2026!' };
 const WEBHOOK_SECRET = 'whsec_local_mock';
 const WEBP_1PX = Uint8Array.from(atob('UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=='), (c) => c.charCodeAt(0));
 
+// The local D1 is a SQLite file under .wrangler. Wrangler names it from a
+// hash, so find the one that actually holds this site's tables rather than
+// guessing, and talk to it directly.
+const DB_DIR = new URL('../../.wrangler/state/v3/d1/miniflare-D1DatabaseObject/', import.meta.url);
+function localDbPath() {
+  if (process.env.TEST_DB) return process.env.TEST_DB;
+  // Wrangler can leave older databases behind when settings change, so take
+  // the most recently written one that has this site's tables.
+  const files = readdirSync(DB_DIR)
+    .filter((f) => f.endsWith('.sqlite'))
+    .map((f) => fileURLToPath(new URL(f, DB_DIR)))
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  for (const path of files) {
+    const db = new DatabaseSync(path, { readOnly: true });
+    try {
+      const row = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'admins'").get();
+      if (row.n) return path;
+    } finally { db.close(); }
+  }
+  throw new Error('no local D1 database found - start `wrangler pages dev` once first');
+}
+
 function sql(command) {
-  execFileSync(WRANGLER, ['d1', 'execute', 'DB', '--local', '--command', command], { env: { ...process.env, CI: 'true' }, stdio: 'pipe' });
+  const db = new DatabaseSync(localDbPath());
+  try { db.exec(command); } finally { db.close(); }
 }
 
 async function api(path, { method = 'GET', body, cookie, admin = false, headers = {}, raw = false } = {}) {
@@ -45,7 +68,6 @@ const futureDay = (n) => new Date(Date.now() + n * 86400000 + 4 * 3600000).toISO
 let stripeServer;
 const stripeCalls = [];
 before(async () => {
-  assert.ok(WRANGLER, 'set WRANGLER to the wrangler binary');
   // Reset to a known state: wipe test data and restore the boutique straight
   // from the seed migration, so earlier runs can never leave it altered.
   const seed = readFileSync(new URL('../../migrations/0002_seed_catalog.sql', import.meta.url), 'utf8');
@@ -53,7 +75,9 @@ before(async () => {
   sql(`DELETE FROM login_attempts; DELETE FROM rate_limits; DELETE FROM sessions; DELETE FROM pass_visits; DELETE FROM passes;
        DELETE FROM voucher_redemptions; DELETE FROM order_items; DELETE FROM orders; DELETE FROM vouchers; DELETE FROM slots;
        DELETE FROM stripe_events; DELETE FROM enquiries; DELETE FROM announcements; DELETE FROM admins WHERE email != 'owner@test.local';
-       DELETE FROM offerings WHERE slug LIKE 'test-%' OR name LIKE 'Test %'; DELETE FROM products; DELETE FROM media;
+       DELETE FROM offerings WHERE slug LIKE 'test-%' OR name LIKE 'Test %'; DELETE FROM products;
+       DELETE FROM media_links; DELETE FROM media_parts; DELETE FROM media;
+       UPDATE products SET image_id = NULL; UPDATE offerings SET image_id = NULL;
        ${productsInsert}
        UPDATE settings SET value = '{"enabled":false}' WHERE key = 'online_booking';
        UPDATE settings SET value = '{"stripe_enabled":false,"hold_minutes":30,"reservation_hold_hours":48}' WHERE key = 'payments';
@@ -452,4 +476,136 @@ test('gift voucher bought online becomes usable after payment', async () => {
 
   const noLoop = await api('/api/checkout', { method: 'POST', body: { customer: { name: 'X', phone: '0501231231' }, voucherCode: view.data.vouchers[0].code, items: [{ type: 'voucher', amount: 100 }] } });
   assert.equal(noLoop.status, 422, 'a voucher cannot buy another voucher');
+});
+
+// A video is bigger than one database row, so it is stored in parts and
+// stitched back together on the way out. These check the whole journey: start,
+// parts, finish, then playback including the byte ranges a player asks for.
+function fakeMp4(bytes) {
+  const buf = new Uint8Array(bytes);
+  buf.set([0x66, 0x74, 0x79, 0x70], 4); // "ftyp", the MP4 signature
+  for (let i = 12; i < bytes; i += 1) buf[i] = i % 251;
+  return buf;
+}
+
+test('a video uploads in parts, plays back whole, and supports seeking', async () => {
+  const PART = 512 * 1024;
+  const size = PART + 1234; // two parts: one full, one short
+  const file = fakeMp4(size);
+
+  const start = await api('/api/admin/media/video', { method: 'POST', admin: true, cookie: S.owner,
+    body: { mime: 'video/mp4', size, width: 720, height: 1280, duration: 12.5, title: 'Playgroup film' } });
+  assert.equal(start.status, 201, JSON.stringify(start.data));
+  const { id, partSize } = start.data;
+  assert.equal(partSize, PART);
+
+  // before it is finished the video must not be served
+  assert.equal((await api(`/media/${id}`, { raw: true })).status, 404);
+
+  for (let i = 0; i * partSize < size; i += 1) {
+    const part = file.subarray(i * partSize, Math.min((i + 1) * partSize, size));
+    const put = await api(`/api/admin/media/video/${id}?part=${i}`, { method: 'PUT', admin: true, cookie: S.owner, body: part,
+      headers: { 'content-type': 'application/octet-stream' } });
+    assert.equal(put.status, 200, JSON.stringify(put.data));
+  }
+  const done = await api(`/api/admin/media/video/${id}/complete`, { method: 'POST', admin: true, cookie: S.owner, body: {} });
+  assert.equal(done.status, 200, JSON.stringify(done.data));
+  assert.equal(done.data.size, size);
+
+  const whole = await api(`/media/${id}`, { raw: true });
+  assert.equal(whole.status, 200);
+  assert.equal(whole.headers.get('content-type'), 'video/mp4');
+  assert.equal(whole.headers.get('accept-ranges'), 'bytes');
+  const body = new Uint8Array(await whole.arrayBuffer());
+  assert.equal(body.length, size);
+  assert.deepEqual(body, file, 'the bytes come back exactly as they went in');
+
+  // seeking: a range that crosses the boundary between two stored parts
+  const mid = await api(`/media/${id}`, { raw: true, headers: { range: `bytes=${PART - 10}-${PART + 9}` } });
+  assert.equal(mid.status, 206);
+  assert.equal(mid.headers.get('content-range'), `bytes ${PART - 10}-${PART + 9}/${size}`);
+  assert.deepEqual(new Uint8Array(await mid.arrayBuffer()), file.subarray(PART - 10, PART + 10));
+
+  const tail = await api(`/media/${id}`, { raw: true, headers: { range: 'bytes=-100' } });
+  assert.equal(tail.status, 206);
+  assert.deepEqual(new Uint8Array(await tail.arrayBuffer()), file.subarray(size - 100));
+
+  const silly = await api(`/media/${id}`, { raw: true, headers: { range: `bytes=${size + 10}-` } });
+  assert.equal(silly.status, 416);
+
+  S.video = id;
+});
+
+test('rubbish and oversized uploads are refused', async () => {
+  const start = await api('/api/admin/media/video', { method: 'POST', admin: true, cookie: S.owner, body: { mime: 'video/mp4', size: 5000 } });
+  const id = start.data.id;
+  const notVideo = await api(`/api/admin/media/video/${id}?part=0`, { method: 'PUT', admin: true, cookie: S.owner,
+    body: new Uint8Array(100), headers: { 'content-type': 'application/octet-stream' } });
+  assert.equal(notVideo.status, 415, 'a file that is not a video is rejected on its first part');
+
+  const tooBig = await api('/api/admin/media/video', { method: 'POST', admin: true, cookie: S.owner, body: { mime: 'video/mp4', size: 200 * 1024 * 1024 } });
+  assert.equal(tooBig.status, 422);
+  const wrongType = await api('/api/admin/media/video', { method: 'POST', admin: true, cookie: S.owner, body: { mime: 'video/quicktime', size: 1000 } });
+  assert.equal(wrongType.status, 422, 'only formats browsers can play are accepted');
+
+  // an unfinished upload is never shown, and finishing with a gap fails
+  const gap = await api('/api/admin/media/video', { method: 'POST', admin: true, cookie: S.owner, body: { mime: 'video/mp4', size: 1024 * 1024 } });
+  await api(`/api/admin/media/video/${gap.data.id}?part=0`, { method: 'PUT', admin: true, cookie: S.owner, body: fakeMp4(512 * 1024), headers: { 'content-type': 'application/octet-stream' } });
+  await api(`/api/admin/media/video/${gap.data.id}?part=2`, { method: 'PUT', admin: true, cookie: S.owner, body: fakeMp4(1000), headers: { 'content-type': 'application/octet-stream' } });
+  const broken = await api(`/api/admin/media/video/${gap.data.id}/complete`, { method: 'POST', admin: true, cookie: S.owner, body: {} });
+  assert.equal(broken.status, 422, 'a video missing a part cannot be published');
+
+  // Without the admin header the request is turned away as cross-site (403);
+  // with the header but no session it fails authentication (401).
+  assert.equal((await api(`/api/admin/media/video/${id}?part=0`, { method: 'PUT', body: fakeMp4(1000) })).status, 403, 'a cross-site upload is refused');
+  assert.equal((await api(`/api/admin/media/video/${id}?part=0`, { method: 'PUT', admin: true, body: fakeMp4(1000) })).status, 401, 'uploads need a signed-in admin');
+});
+
+test('a video added to a programme replaces the film on the homepage', async () => {
+  const offerings = await api('/api/admin/offerings', { cookie: S.owner });
+  const playgroup = offerings.data.rows.find((o) => o.slug === 'playgroup');
+  assert.ok(playgroup, 'the seeded playgroup programme');
+
+  const link = await api(`/api/admin/offerings/${playgroup.id}/media`, { method: 'PUT', admin: true, cookie: S.owner, body: { ids: [S.video] } });
+  assert.equal(link.status, 200, JSON.stringify(link.data));
+  assert.equal(link.data.rows.length, 1);
+  assert.equal(link.data.rows[0].kind, 'video');
+
+  const home = await api('/', { raw: true });
+  const html = await home.text();
+  const block = html.slice(html.indexOf('data-film="playgroup"'), html.indexOf('data-film="playgroup"') + 1200);
+  assert.ok(block.includes(`data-src="/media/${S.video}"`), 'the full film now points at the uploaded video');
+  assert.ok(!block.includes('playgroup-loop.mp4'), 'the old hover loop is dropped so nothing mismatched plays');
+  assert.ok(html.includes('data-src="assets/video/royal-film.mp4"'), 'films without an uploaded video are untouched');
+
+  // the booking page gets it too, through the public catalogue
+  const cat = await api('/api/catalog');
+  const row = cat.data.offerings.find((o) => o.id === playgroup.id);
+  assert.equal(row.media.length, 1);
+  assert.equal(row.media[0].id, S.video);
+
+  // in-use media cannot be deleted by accident
+  const del = await api(`/api/admin/media/${S.video}`, { method: 'DELETE', admin: true, cookie: S.owner });
+  assert.equal(del.status, 409);
+
+  await api(`/api/admin/offerings/${playgroup.id}/media`, { method: 'PUT', admin: true, cookie: S.owner, body: { ids: [] } });
+  const cleaned = await api('/', { raw: true });
+  assert.ok((await cleaned.text()).includes('assets/video/playgroup-film.mp4'), 'removing it puts the built-in film back');
+});
+
+test('a product video travels from the admin to the boutique card', async () => {
+  const start = await api('/api/admin/media/video', { method: 'POST', admin: true, cookie: S.owner, body: { mime: 'video/mp4', size: 4096, width: 640, height: 640, duration: 4 } });
+  await api(`/api/admin/media/video/${start.data.id}?part=0`, { method: 'PUT', admin: true, cookie: S.owner, body: fakeMp4(4096), headers: { 'content-type': 'application/octet-stream' } });
+  const poster = await api('/api/admin/media', { method: 'POST', admin: true, cookie: S.owner, body: WEBP_1PX, headers: { 'content-type': 'image/webp' } });
+  await api(`/api/admin/media/video/${start.data.id}/complete`, { method: 'POST', admin: true, cookie: S.owner, body: { poster_id: poster.data.id } });
+
+  const put = await api(`/api/admin/products/${S.sonic.id}/media`, { method: 'PUT', admin: true, cookie: S.owner, body: { ids: [start.data.id] } });
+  assert.equal(put.status, 200, JSON.stringify(put.data));
+
+  const play = await api('/play', { raw: true });
+  const html = await play.text();
+  assert.ok(html.includes(`data-video="/media/${start.data.id}"`), 'the card carries the video');
+  assert.ok(html.includes(`data-video-poster="/media/${poster.data.id}"`), 'and the still to show first');
+
+  await api(`/api/admin/products/${S.sonic.id}/media`, { method: 'PUT', admin: true, cookie: S.owner, body: { ids: [] } });
 });

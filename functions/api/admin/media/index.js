@@ -34,7 +34,12 @@ export const onRequestPost = handle(async ({ request, env, data }) => {
   return json({ id, url: `/media/${id}`, size: buf.length, width, height }, 201);
 });
 
-export const onRequestGet = handle(async ({ env }) => {
-  const rows = await all(env.DB, 'SELECT id, mime, size, width, height, alt, created_at FROM media ORDER BY created_at DESC LIMIT 120');
+export const onRequestGet = handle(async ({ request, env }) => {
+  const kind = new URL(request.url).searchParams.get('kind');
+  const where = kind === 'image' || kind === 'video' ? ' AND kind = ?' : '';
+  const rows = await all(env.DB,
+    `SELECT id, kind, mime, size, width, height, duration, poster_id, title, alt, created_at
+     FROM media WHERE status = 'ready'${where} ORDER BY created_at DESC LIMIT 200`,
+    ...(where ? [kind] : []));
   return json({ rows });
 });

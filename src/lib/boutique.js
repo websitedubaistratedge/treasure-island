@@ -1,11 +1,25 @@
 import { escapeHtml as e } from './html.js';
+import { firstVideo, firstImage, mediaUrl, posterUrl } from './media.js';
 
 // The site's existing shots are stored as a base path ("assets/img/shop/sonic-plush")
 // with @400/@600/@800 WebP variants; uploads from the admin are one WebP in /media.
 export function productImage(p, siteUrl) {
+  // A photo added to the product's gallery wins over the built-in shot.
+  const gallery = firstImage(p.media);
+  if (gallery && !p.image_id) {
+    const src = mediaUrl(gallery.id);
+    return { src, srcsetGrid: null, srcsetRail: null, absolute: `${siteUrl}${src}` };
+  }
   if (p.image_id) {
     const src = `/media/${p.image_id}`;
     return { src, srcsetGrid: null, srcsetRail: null, absolute: `${siteUrl}${src}` };
+  }
+  // No photo at all, but there is a video: its cover frame stands in, so the
+  // card is never an empty box.
+  if (!p.image_url && !p.image_id) {
+    const clip = firstVideo(p.media);
+    const poster = posterUrl(clip);
+    if (poster) return { src: poster, srcsetGrid: null, srcsetRail: null, absolute: `${siteUrl}${poster}` };
   }
   if (p.image_url) {
     const base = `/${p.image_url.replace(/^\/+/, '')}`;
@@ -43,13 +57,17 @@ export function productCard(p, { number, siteUrl, variant, cart }) {
   const sizes = variant === 'rail' ? '(max-width:699px) 42vw, 240px' : '(max-width:699px) 44vw, (max-width:1023px) 29vw, 22vw';
   const srcset = variant === 'rail' ? img.srcsetRail : img.srcsetGrid;
   const soldOut = p.stock === 0;
+  const video = firstVideo(p.media);
+  // The card markup is unchanged; a product with a video just carries the
+  // address of it, and the page script plays it over the photo on hover.
+  const videoAttrs = video ? ` data-video="${e(mediaUrl(video.id))}" data-video-type="${e(video.mime || 'video/mp4')}"${posterUrl(video) ? ` data-video-poster="${e(posterUrl(video))}"` : ''}` : '';
   const price = p.price_fils == null
     ? `<a class="shop-price shop-price--ask" href="${wa}" target="_blank" rel="noopener">Ask for price</a>`
     : `<span class="shop-price">${e(p.price_fils / 100)} <small>AED</small></span>`;
   const addToCart = cart && p.price_fils != null && !soldOut
     ? `<button type="button" class="btn btn--navy btn--sm shop-order shop-add" data-add-product="${p.id}" data-name="${e(p.name)}" data-price="${p.price_fils}">Add to cart</button>`
     : '';
-  return `<article class="shop-card"${variant === 'grid' ? ' data-reveal' : ''}>
+  return `<article class="shop-card"${variant === 'grid' ? ' data-reveal' : ''}${videoAttrs}>
           <figure>${img.src ? `<img class="lazy" src="${e(img.src)}"${srcset ? ` srcset="${e(srcset)}" sizes="${sizes}"` : ''} alt="${e(p.name)} at the Treasure Island Boutique" width="800" height="800" loading="lazy" decoding="async">` : ''}</figure>
           <div class="shop-body">
             <h3 class="shop-name">${e(p.name)}</h3>

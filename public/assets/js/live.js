@@ -59,6 +59,7 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    play: '<path d="M7 4.5v15l13-7.5-13-7.5z" fill="currentColor" stroke="none"/>',
   };
   function icon(n) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICON[n] || '') + '</svg>'; }
   var WA_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91A9.9 9.9 0 0 0 12.04 2zm5.8 14.1c-.24.68-1.42 1.3-1.95 1.38-.5.07-1.13.1-1.82-.12-.42-.13-.96-.31-1.65-.61-2.9-1.25-4.8-4.17-4.94-4.36-.14-.2-1.18-1.57-1.18-3s.75-2.13 1.02-2.42c.27-.29.58-.36.78-.36h.56c.18 0 .42-.07.66.5.24.58.83 2.01.9 2.16.07.14.12.31.02.5-.1.2-.14.31-.29.48-.14.17-.3.38-.43.51-.14.14-.29.3-.13.59.17.29.74 1.21 1.58 1.96 1.09.97 2 1.27 2.29 1.41.29.14.46.12.63-.07.17-.2.72-.84.92-1.13.19-.29.39-.24.66-.14.27.1 1.7.8 1.99.95.29.14.48.22.55.34.07.12.07.7-.17 1.38z"/></svg>';
@@ -91,7 +92,14 @@
   }
   var catalogPromise;
   function catalog() { return catalogPromise || (catalogPromise = getJson('/api/catalog')); }
+  function mediaOf(row, kind) {
+    var items = row.media || [];
+    for (var i = 0; i < items.length; i++) if (items[i].kind === kind) return items[i];
+    return null;
+  }
   function imageOf(row, size) {
+    var shot = mediaOf(row, 'image');
+    if (shot && !row.image_id) return '/media/' + shot.id;
     if (row.image_id) return '/media/' + row.image_id;
     if (row.image_url) return '/' + String(row.image_url).replace(/^\/+/, '') + '@' + (size || 600) + '.webp';
     return null;
@@ -391,6 +399,90 @@
       price_fils: Number(b.getAttribute('data-price')), image: img ? (img.currentSrc || img.src) : null });
   });
 
+
+  /* ---------- 6b. product videos ---------- */
+  // A boutique product with a video keeps its photo; the video plays quietly
+  // over it on hover, and on a touch screen after a tap on the play badge.
+  function productVideos() {
+    var cards = $$('.shop-card[data-video]');
+    if (!cards.length) return;
+    cards.forEach(function (card) {
+      var fig = $('figure', card);
+      if (!fig || $('.ti-vid', fig)) return;
+      fig.classList.add('ti-has-vid');
+      var badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'ti-vid-badge';
+      badge.setAttribute('aria-label', 'Play the video');
+      badge.innerHTML = icon('play');
+      fig.appendChild(badge);
+
+      var vid = null;
+      function build() {
+        if (vid) return vid;
+        vid = document.createElement('video');
+        vid.className = 'ti-vid';
+        vid.muted = true;
+        vid.loop = true;
+        vid.playsInline = true;
+        vid.preload = 'none';
+        if (card.getAttribute('data-video-poster')) vid.poster = card.getAttribute('data-video-poster');
+        var src = document.createElement('source');
+        src.src = card.getAttribute('data-video');
+        src.type = card.getAttribute('data-video-type') || 'video/mp4';
+        vid.appendChild(src);
+        fig.appendChild(vid);
+        return vid;
+      }
+      function play() {
+        var v = build();
+        fig.classList.add('ti-vid-on');
+        var pr = v.play();
+        if (pr && pr.catch) pr.catch(function () {});
+      }
+      function stop() {
+        if (!vid) return;
+        fig.classList.remove('ti-vid-on');
+        try { vid.pause(); } catch (e) { /* ignore */ }
+      }
+      card.addEventListener('mouseenter', play);
+      card.addEventListener('mouseleave', stop);
+      badge.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (fig.classList.contains('ti-vid-on')) { stop(); return; }
+        play();
+        if (vid) { vid.muted = false; vid.loop = false; vid.controls = true; }
+      });
+    });
+  }
+
+  /* ---------- 6c. video lightbox ---------- */
+  function openVideo(src, type, poster) {
+    var back = document.createElement('div');
+    back.className = 'ti-lightbox';
+    back.innerHTML = '<button type="button" class="ti-lightbox-x" aria-label="Close">' + icon('x') + '</button>';
+    var v = document.createElement('video');
+    v.controls = true;
+    v.autoplay = true;
+    v.playsInline = true;
+    if (poster) v.poster = poster;
+    var s = document.createElement('source');
+    s.src = src; s.type = type || 'video/mp4';
+    v.appendChild(s);
+    back.appendChild(v);
+    document.body.appendChild(back);
+    requestAnimationFrame(function () { back.classList.add('show'); });
+    function close() {
+      back.classList.remove('show');
+      try { v.pause(); } catch (e) { /* ignore */ }
+      setTimeout(function () { back.remove(); }, 200);
+      document.removeEventListener('keydown', onKey);
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    back.addEventListener('click', function (e) { if (e.target === back || e.target.closest('.ti-lightbox-x')) close(); });
+    document.addEventListener('keydown', onKey);
+  }
+
   /* ---------- 7. booking page ---------- */
   var KIND = { program: 'Programme', camp: 'Holiday camp', party: 'Birthday party', workshop: 'Workshop', event: 'Event', pass: 'Multi-visit pass' };
   function bookPage(root) {
@@ -407,10 +499,14 @@
       var passes = cat.offerings.filter(function (o) { return o.kind === 'pass'; });
       var card = function (o) {
         var img = imageOf(o, 600);
+        var clip = mediaOf(o, 'video');
+        if (clip && !img && clip.poster_id) img = '/media/' + clip.poster_id;
         var unit = o.price_fils == null ? '' : o.price_unit === 'child' ? ' <small>per child</small>' : o.kind === 'pass' ? ' <small>per pass</small>' : ' <small>per booking</small>';
         var left = slotsOf(o).filter(function (s) { return s.remaining > 0; }).length;
         return '<article class="ti-offer" id="o-' + esc(o.slug) + '" data-offer="' + o.id + '">' +
-          '<div class="ti-offer-img">' + (img ? '<img src="' + esc(img) + '" alt="" loading="lazy">' : icon(o.kind === 'pass' ? 'ticket' : 'calendar')) + '</div>' +
+          '<div class="ti-offer-img">' + (img ? '<img src="' + esc(img) + '" alt="" loading="lazy">' : icon(o.kind === 'pass' ? 'ticket' : 'calendar')) +
+          (clip ? '<button type="button" class="ti-watch" data-watch="' + esc(clip.id) + '" data-type="' + esc(clip.mime || 'video/mp4') + '"' +
+            (clip.poster_id ? ' data-poster="/media/' + esc(clip.poster_id) + '"' : '') + '>' + icon('play') + 'Watch</button>' : '') + '</div>' +
           '<div class="ti-offer-body"><span class="ti-offer-kind">' + esc(KIND[o.kind] || o.kind) + (o.min_age != null || o.max_age != null ? ' · ages ' + esc(o.min_age != null ? o.min_age : 1) + '–' + esc(o.max_age != null ? o.max_age : 10) : '') + '</span>' +
           '<h3>' + esc(o.name) + '</h3>' + (o.summary ? '<p>' + esc(o.summary) + '</p>' : '') +
           '<div class="ti-offer-foot"><span class="ti-price">' + aed(o.price_fils) + unit + (o.deposit_fils != null ? '<br><small>' + aed(o.deposit_fils) + ' deposit to book</small>' : '') + '</span>' +
@@ -527,6 +623,12 @@
       }
 
       root.addEventListener('click', function (e) {
+        var watch = e.target.closest('[data-watch]');
+        if (watch) {
+          e.preventDefault();
+          openVideo('/media/' + watch.getAttribute('data-watch'), watch.getAttribute('data-type'), watch.getAttribute('data-poster'));
+          return;
+        }
         var b = e.target.closest('[data-open], [data-open-voucher]');
         if (b) openPicker(b.closest('.ti-offer'));
       });
@@ -601,6 +703,7 @@
     enquiries();
     renderFab();
     bookButtons();
+    productVideos();
     var book = $('[data-live-page="book"]');
     if (book) bookPage(book);
     var order = $('[data-live-page="order"]');
