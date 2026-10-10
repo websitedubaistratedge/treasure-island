@@ -13,9 +13,11 @@ export const onRequestGet = handle(async ({ env }) => {
     slotsWithAvailability(env.DB, { to: horizon }),
     all(env.DB, 'SELECT id, name, description, price_fils, image_id, image_url, stock FROM products WHERE active = 1 ORDER BY sort, id'),
   ]);
+  // Same here: a booking page without galleries is fine, one that errors is not.
+  const gallery = (entity, ids) => galleriesFor(env.DB, entity, ids).catch(() => new Map());
   const [offeringMedia, productMedia] = await Promise.all([
-    galleriesFor(env.DB, 'offering', offerings.map((o) => o.id)),
-    galleriesFor(env.DB, 'product', products.map((p) => p.id)),
+    gallery('offering', offerings.map((o) => o.id)),
+    gallery('product', products.map((p) => p.id)),
   ]);
   const withMedia = (rows, map) => rows.map((r) => ({ ...r, media: map.get(r.id) || [] }));
   return json({ offerings: withMedia(offerings, offeringMedia), slots, products: withMedia(products, productMedia) }, 200, { 'cache-control': 'no-store' });

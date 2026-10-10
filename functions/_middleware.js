@@ -29,6 +29,12 @@ export async function onRequest(context) {
   const type = res.headers.get('content-type') || '';
   if (request.method !== 'GET' || !type.includes('text/html') || !env.DB) return res;
 
+  // Galleries are an addition, not a dependency: if that part of the database
+  // is unavailable the pages still get their settings, cart and products.
+  const galleries = async (entity, ids) => {
+    try { return await galleriesFor(env.DB, entity, ids); } catch (err) { console.error('galleries skipped', err); return new Map(); }
+  };
+
   const boutiquePage = path === '/' || path === '/index.html' || path === '/play' || path === '/play.html';
   let config;
   let products = [];
@@ -39,14 +45,14 @@ export async function onRequest(context) {
     if (boutiquePage) {
       products = await all(env.DB,
         'SELECT id, slug, name, description, price_fils, image_id, image_url, stock, featured FROM products WHERE active = 1 ORDER BY sort, id');
-      productMedia = await galleriesFor(env.DB, 'product', products.map((p) => p.id));
+      productMedia = await galleries('product', products.map((p) => p.id));
     }
     // A video added to a programme in the admin replaces the film in that
     // block, so the team can refresh what plays without a developer.
     const offerings = await all(env.DB, 'SELECT id, slug FROM offerings WHERE active = 1');
-    const galleries = await galleriesFor(env.DB, 'offering', offerings.map((o) => o.id));
+    const byOffering = await galleries('offering', offerings.map((o) => o.id));
     films = offerings
-      .map((o) => ({ slug: o.slug, video: firstVideo(galleries.get(o.id)), image: firstImage(galleries.get(o.id)) }))
+      .map((o) => ({ slug: o.slug, video: firstVideo(byOffering.get(o.id)), image: firstImage(byOffering.get(o.id)) }))
       .filter((f) => f.video);
   } catch (err) {
     console.error('live layer skipped', err);
